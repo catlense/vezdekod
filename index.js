@@ -1,10 +1,11 @@
 import 'dotenv/config'
-import {API, ButtonColor, Keyboard, Updates, Upload} from 'vk-io'
+import { API, ButtonColor, Keyboard, Updates, Upload } from 'vk-io'
 import mongoose from 'mongoose'
 import fs from 'fs'
 import path from 'path'
 import User from './models/User.js'
 import Meme from './models/Meme.js'
+import https from 'https'
 
 const api = new API({
   token: process.env.TOKEN
@@ -14,22 +15,22 @@ const upload = new Upload({
   api
 })
 
-const updates = new Updates({api, upload})
+const updates = new Updates({ api, upload })
 console.log('Bot started')
 mongoose.connect('mongodb://127.0.0.1:27017/vezdekod-bot').then(() => console.log('DB Connected'))
 
-updates.on('message', async(context) => {
+updates.on('message', async (context) => {
 
-  const sendMem = async() => {
+  const sendMem = async () => {
     let file
     try {
       file = path.join('images', fs.readdirSync(path.join('images'))[Math.floor(Math.random() * fs.readdirSync(path.join('images')).length - 1)])
     } catch {
       file = path.join('images', fs.readdirSync(path.join('images'))[Math.floor(Math.random() * fs.readdirSync(path.join('images')).length - 1)])
     }
-    const user = await User.findOne({id: context.senderId})
-    if(user) {
-      if(user.watched.length >= fs.readdirSync(path.join('images')).length) {
+    const user = await User.findOne({ id: context.senderId })
+    if (user) {
+      if (user.watched.length >= fs.readdirSync(path.join('images')).length) {
         return context.send('Вы посмотрели все доступные мемы :(')
       }
       while (user.watched.includes(path.basename(file))) {
@@ -72,14 +73,14 @@ updates.on('message', async(context) => {
           })
         ],
       ]).oneTime()
-      context.send('Лайк или дизлайк?', {attachment, keyboard})
+      context.send('Лайк или дизлайк?', { attachment, keyboard })
     })
   }
 
 
-  // console.log(context)
-  if(context.text && (context.text.toLocaleLowerCase() === 'привет' || context.text.toLocaleLowerCase() === 'начать')) {
+  if (context.text && (context.text.toLocaleLowerCase() === 'привет' || context.text.toLocaleLowerCase() === 'начать')) {
     context.send('Привет вездекодерам!')
+    context.send('Баллы - команда (действия):<br><br>10 - Привет<br>20 - вывод после привета<br>30 - мем, статистика, *кнопки клавиатуры*<br>40 - статистика<br>50 - загрузка (с прикрепленным фото)<br><br>Прим.: статистика грузится, просто её нужно немного подождать:)')
     const keyboard = Keyboard.keyboard([
       [
         Keyboard.textButton({
@@ -108,24 +109,24 @@ updates.on('message', async(context) => {
         color: Keyboard.SECONDARY_COLOR
       })
     ]).oneTime()
-    context.send('1. Как ты?', {keyboard})
-  } else if(context.text && context.text.toLowerCase() === 'мем') {
+    context.send('1. Как ты?', { keyboard })
+  } else if (context.text && context.text.toLowerCase() === 'мем') {
     await sendMem()
-  } else if(context.messagePayload && context.text === '👍' || context.text === '👎') {
-    const user = await User.findOne({id: context.senderId})
-    if(user) {
-      if(context.messagePayload === 'like') {
+  } else if (context.messagePayload && context.text === '👍' || context.text === '👎') {
+    const user = await User.findOne({ id: context.senderId })
+    if (user) {
+      if (context.messagePayload === 'like') {
         user.likes = user.likes + 1
         user.watched.push(context.messagePayload.name)
-        user.memes.push({name: context.messagePayload.name, type: 'like'})
+        user.memes.push({ name: context.messagePayload.name, type: 'like' })
       } else {
         user.dislikes = user.dislikes + 1
         user.watched.push(context.messagePayload.name)
-        user.memes.push({name: context.messagePayload.name, type: 'dislike'})
+        user.memes.push({ name: context.messagePayload.name, type: 'dislike' })
       }
       await user.save()
-    } else if(!user && context.messagePayload.command === 'like') {
-      const [user] = await api.users.get({user_ids: context.senderId})
+    } else if (!user && context.messagePayload.command === 'like') {
+      const [user] = await api.users.get({ user_ids: context.senderId })
       const newUser = new User({
         id: context.senderId,
         name: user.first_name,
@@ -133,11 +134,11 @@ updates.on('message', async(context) => {
         likes: 1,
         dislikes: 0,
         watched: [context.messagePayload.name],
-        memes: [{name: context.messagePayload.name, type: 'like'}]
+        memes: [{ name: context.messagePayload.name, type: 'like' }]
       })
       await newUser.save()
-    } else if(!user && context.messagePayload.command === 'dislike') {
-      const [user] = await api.users.get({user_ids: context.senderId})
+    } else if (!user && context.messagePayload.command === 'dislike') {
+      const [user] = await api.users.get({ user_ids: context.senderId })
       const newUser = new User({
         id: context.senderId,
         name: user.first_name,
@@ -145,20 +146,20 @@ updates.on('message', async(context) => {
         likes: 0,
         dislikes: 1,
         watched: [context.messagePayload.name],
-        memes: [{name: context.messagePayload.name, type: 'dislike'}]
+        memes: [{ name: context.messagePayload.name, type: 'dislike' }]
       })
       await newUser.save()
     }
-    const mem = await Meme.findOne({file: context.messagePayload.name})
-    if(mem) {
-      if(context.messagePayload.command === 'like') {
+    const mem = await Meme.findOne({ file: context.messagePayload.name })
+    if (mem) {
+      if (context.messagePayload.command === 'like') {
         mem.likes = mem.likes + 1
       } else {
         mem.dislikes = mem.dislikes + 1
       }
       await mem.save()
     }
-    if(!mem && context.messagePayload.command === 'like') {
+    if (!mem && context.messagePayload.command === 'like') {
       const newMem = new Meme({
         id: await Meme.count(),
         file: context.messagePayload.name,
@@ -166,7 +167,7 @@ updates.on('message', async(context) => {
         dislikes: 0
       })
       await newMem.save()
-    } else if(!mem && context.messagePayload.command === 'dislike') {
+    } else if (!mem && context.messagePayload.command === 'dislike') {
       const newMem = new Meme({
         id: await Meme.count(),
         file: context.messagePayload.name,
@@ -176,21 +177,48 @@ updates.on('message', async(context) => {
       await newMem.save()
     }
     await sendMem()
-  } else if(context.text && context.text.toLocaleLowerCase() === 'статистика') {
-    const users = await User.find({}, {_id: 0, watched: 0, memes: 0, __v: 0})
+  } else if (context.text && context.text.toLocaleLowerCase() === 'статистика') {
+    const users = await User.find({}, { _id: 0, watched: 0, memes: 0, __v: 0 })
     let result = ''
-    users.forEach(async(e, i) => {
+    users.forEach(async (e, i) => {
       result += `${i + 1}. ${e.name} ${e.surname}: лайков: ${e.likes}; дизлайков: ${e.dislikes}<br>`
     })
-    context.send(result, {keyboard: Keyboard.keyboard([
-      [Keyboard.textButton({label: 'Мем', color: ButtonColor.PRIMARY})],
-      [Keyboard.textButton({label: 'Статистика', color: ButtonColor.SECONDARY})]
-    ])})
+    result += '<br><br>Самые залайканные мемы:'
+    let memes = await Meme.find({}, { _id: 0, __v: 0 })
+    memes.sort((a, b) => { return b.likes - a.likes })
+    const attachment = []
+
+    Promise.all(memes.map(async(e) => {
+      await upload.messagePhoto({
+        source: {
+          value: path.join('images', e.file)
+        }
+      }).then(a => {if(attachment.length === 9) return; attachment.push(`photo${a.ownerId}_${a.id}`);})
+    })).then(() => {
+      context.send(result, {
+        attachment,
+        keyboard: Keyboard.keyboard([
+          [Keyboard.textButton({ label: 'Мем', color: ButtonColor.PRIMARY })],
+          [Keyboard.textButton({ label: 'Статистика', color: ButtonColor.SECONDARY })]
+        ])
+      })
+    })
+  } else if(context.text && context.text.toLowerCase() === 'загрузить') {
+    if(context.attachments && context.attachments[0]) {
+      let file = fs.createWriteStream(path.join('images', path.basename(context.attachments[0].largeSizeUrl).split('?')[0]))
+      https.get(context.attachments[0].largeSizeUrl, function(response) {
+        response.pipe(file);
+      });
+      console.log(path.basename(context.attachments[0].largeSizeUrl).split('?')[0])
+      context.reply('Мем добавлен в коллекцию!')
+    } else {
+      context.reply('Прикрепите фотографию')
+    }
   } else {
-    if(context.messagePayload && context.messagePayload.command === 'first_quest') {
-      context.send(`${context.messagePayload.value === 'skip' ? 
-      'Пропускаешь? Ну ладно..(' : context.messagePayload.value === 'norm' ? 
-      'Рад, что у тебя всё хорошо, значит, продолжаем!' : 'Плохо, что не очень, но давай продолжим...'}`)
+    if (context.messagePayload && context.messagePayload.command === 'first_quest') {
+      context.send(`${context.messagePayload.value === 'skip' ?
+        'Пропускаешь? Ну ладно..(' : context.messagePayload.value === 'norm' ?
+          'Рад, что у тебя всё хорошо, значит, продолжаем!' : 'Плохо, что не очень, но давай продолжим...'}`)
       const keyboard = Keyboard.keyboard([
         [
           Keyboard.textButton({
@@ -219,11 +247,11 @@ updates.on('message', async(context) => {
           color: Keyboard.SECONDARY_COLOR
         })
       ]).inline()
-      context.send('2. Где ты живёшь?', {keyboard})
-    } else if(context.messagePayload && context.messagePayload.command === 'second_quest') {
-      context.send(`${context.messagePayload.value === 'ru' ? 
-      'Мы с тобой так похожи, может, это судьба?' : context.messagePayload.value === 'kz' ? 
-      'Соседям ку, остальным соболезную' : 'ыаыа??'}`)
+      context.send('2. Где ты живёшь?', { keyboard })
+    } else if (context.messagePayload && context.messagePayload.command === 'second_quest') {
+      context.send(`${context.messagePayload.value === 'ru' ?
+        'Мы с тобой так похожи, может, это судьба?' : context.messagePayload.value === 'kz' ?
+          'Соседям ку, остальным соболезную' : 'ыаыа??'}`)
       const keyboard = Keyboard.keyboard([
         [
           Keyboard.urlButton({
@@ -252,11 +280,11 @@ updates.on('message', async(context) => {
           })
         ],
       ])
-      context.send('3. Хочешь ли ты перейти на мой сайт?', {keyboard})
-      
-    } else if(context.messagePayload && context.messagePayload.command === 'third_quest') {
-      context.send(`${context.messagePayload.value === 'yes' ? 
-      'Спасибо, мне очень приятно!' : 'Блин, ну ладно('}`)
+      context.send('3. Хочешь ли ты перейти на мой сайт?', { keyboard })
+
+    } else if (context.messagePayload && context.messagePayload.command === 'third_quest') {
+      context.send(`${context.messagePayload.value === 'yes' ?
+        'Спасибо, мне очень приятно!' : 'Блин, ну ладно('}`)
       const keyboard = Keyboard.keyboard([
         [
           Keyboard.locationRequestButton({
@@ -276,10 +304,10 @@ updates.on('message', async(context) => {
           })
         ]
       ]).oneTime()
-      context.send('4. Можешь ли ты поделиться своим местоположением?', {keyboard})
-    } else if(context.messagePayload && context.messagePayload.command === 'fourth_quest') {
-      context.send(`${context.messagePayload.value === 'ok' ? 
-      'Жди в гости <3' : 'Звук по-анонимовски'}`)
+      context.send('4. Можешь ли ты поделиться своим местоположением?', { keyboard })
+    } else if (context.messagePayload && context.messagePayload.command === 'fourth_quest') {
+      context.send(`${context.messagePayload.value === 'ok' ?
+        'Жди в гости <3' : 'Звук по-анонимовски'}`)
       const keyboard = Keyboard.keyboard([
         [
           Keyboard.payButton({
@@ -305,10 +333,10 @@ updates.on('message', async(context) => {
           })
         ]
       ]).oneTime()
-      context.send('5. Ты вообще в курсе, что есть вариант оплатить с помощью VK Pay?', {keyboard})
-    } else if(context.messagePayload && context.messagePayload.command === 'fifth_quest') {
-      context.send(`${context.messagePayload.value === 'pay' ? 
-      'Уаааау' : 'Отлично!'}`)
+      context.send('5. Ты вообще в курсе, что есть вариант оплатить с помощью VK Pay?', { keyboard })
+    } else if (context.messagePayload && context.messagePayload.command === 'fifth_quest') {
+      context.send(`${context.messagePayload.value === 'pay' ?
+        'Уаааау' : 'Отлично!'}`)
       const keyboard = Keyboard.keyboard([
         [
           Keyboard.textButton({
@@ -362,10 +390,10 @@ updates.on('message', async(context) => {
           }),
         ]
       ]).inline()
-      context.send('6. Кстати, а сколько будет 2 + 2 * 2?', {keyboard})
-    } else if(context.messagePayload && context.messagePayload.command === 'sixth_quest') {
-      context.send(`${context.messagePayload.value === '6' ? 
-      'Да ты прям гений математики!' : 'wow'}`)
+      context.send('6. Кстати, а сколько будет 2 + 2 * 2?', { keyboard })
+    } else if (context.messagePayload && context.messagePayload.command === 'sixth_quest') {
+      context.send(`${context.messagePayload.value === '6' ?
+        'Да ты прям гений математики!' : 'wow'}`)
 
       const keyboard = Keyboard.keyboard([
         [
@@ -414,10 +442,10 @@ updates.on('message', async(context) => {
           })
         ]
       ]).oneTime()
-      context.send('7. Кстати, как тебе tpoksy?', {keyboard})
-    } else if(context.messagePayload && context.messagePayload.command === 'seventh_quest') {
-      context.send(`${context.messagePayload.value === 'norm' || 'meganorm' ? 
-      'Спасибо за оценку!' : 'Блинб, ладно((('}`)
+      context.send('7. Кстати, как тебе tpoksy?', { keyboard })
+    } else if (context.messagePayload && context.messagePayload.command === 'seventh_quest') {
+      context.send(`${context.messagePayload.value === 'norm' || 'meganorm' ?
+        'Спасибо за оценку!' : 'Блинб, ладно((('}`)
 
       const keyboard = Keyboard.keyboard([
         [
@@ -439,10 +467,10 @@ updates.on('message', async(context) => {
         ]
       ]).oneTime()
 
-      context.send('8. Давай откроем приложение?', {keyboard})
-    } else if(context.messagePayload && context.messagePayload.command === 'eighth_quest') {
-      context.send(`${context.messagePayload.value === 'true' && 
-      'Надеюсь на максимальный балл)'}`)
+      context.send('8. Давай откроем приложение?', { keyboard })
+    } else if (context.messagePayload && context.messagePayload.command === 'eighth_quest') {
+      context.send(`${context.messagePayload.value === 'true' &&
+        'Надеюсь на максимальный балл)'}`)
     }
   }
 })
