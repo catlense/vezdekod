@@ -115,7 +115,7 @@ updates.on('message', async (context) => {
   } else if (context.messagePayload && context.text === '👍' || context.text === '👎') {
     const user = await User.findOne({ id: context.senderId })
     if (user) {
-      if (context.messagePayload === 'like') {
+      if (context.messagePayload.command === 'like') {
         user.likes = user.likes + 1
         user.watched.push(context.messagePayload.name)
         user.memes.push({ name: context.messagePayload.name, type: 'like' })
